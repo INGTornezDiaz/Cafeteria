@@ -1,0 +1,55 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Funciones de utilidad
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'apolinar12@gmail.com' ||
+        firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.PK_ROL == 1
+      );
+    }
+    
+    function isChef() {
+      return isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/chefs/$(request.auth.uid)).data.PK_ROL == 2;
+    }
+
+    // Regla para imágenes de platillos
+    match /images/platillos/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de postres
+    match /images/postres/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de bebidas
+    match /images/bebidas/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de perfil
+    match /images/perfiles/{userId}/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAdmin() || request.auth.uid == userId;
+    }
+
+    // Regla por defecto para otras imágenes
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isChef();
+    }
+  }
+} 

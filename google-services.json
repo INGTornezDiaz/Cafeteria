@@ -1,0 +1,49 @@
+{
+  "project_info": {
+    "project_number": "423268040909",
+    "firebase_url": "https://comedor-e3b71-default-rtdb.firebaseio.com",
+    "project_id": "comedor-e3b71",
+    "storage_bucket": "comedor-e3b71.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:423268040909:android:d55ce9a027d15c8b986984",
+        "android_client_info": {
+          "package_name": "com.example.flutter_platillos"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBSfp41HGwNpXISV1d3iA86Lz-eAUjbbA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:423268040909:android:774807056606e979986984",
+        "android_client_info": {
+          "package_name": "com.utc.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBSfp41HGwNpXISV1d3iA86Lz-eAUjbbA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

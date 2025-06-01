@@ -6,5 +6,7 @@
     },
     "updateVscodeSettings": true,
     "updateGitIgnore": true,
-    "runPubGetOnSdkChanges": true
+    "runPubGetOnSdkChanges": true,
+    "git.ignoreLimitWarning": true,
+    "cmake.sourceDirectory": "C:/Users/apoli/OneDrive/Escritorio/flutter_proyecto/windows/flutter"
   }

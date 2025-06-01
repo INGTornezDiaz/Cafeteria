@@ -1,260 +1,401 @@
 import 'package:flutter/material.dart';
-import '../DB/conexion_login.dart';
+import '../services/firebase_service.dart';
 
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
+
   @override
   _RegisterScreenState createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  String? _selectedRole = 'Estudiante'; // Roles: Chef, Estudiante, Docente
+  String _selectedRole = 'Estudiante';
+  bool _isLoading = false;
+  bool _isPasswordVisible = false;
+  bool _isConfirmPasswordVisible = false;
+  final FirebaseService _firebaseService = FirebaseService();
 
-  // Controladores de texto
-  final TextEditingController _nombreController = TextEditingController();
-  final TextEditingController _apellidoPaternoController =
-      TextEditingController();
-  final TextEditingController _apellidoMaternoController =
-      TextEditingController();
-  final TextEditingController _matriculaController = TextEditingController();
-  final TextEditingController _carreraController = TextEditingController();
-  final TextEditingController _semestreController = TextEditingController();
-  final TextEditingController _rfcController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  // Paleta de colores premium
+  final Color primaryColor = Color(0xFFFF7F11);
+  final Color secondaryColor = Color(0xFFFFD700);
+  final Color backgroundColor = Color(0xFFFAFAFA);
+  final Color cardColor = Colors.white;
+  final Color textColor = Color(0xFF444444);
+  final Color borderColor = Color(0xFFEEEEEE);
+
+  // Controladores
+  final List<TextEditingController> _controllers =
+      List.generate(11, (index) => TextEditingController());
 
   @override
-  void initState() {
-    super.initState();
-    // Imprimir la ruta de la base de datos al iniciar el registro
-    DBHelper.printDatabasePath();
+  void dispose() {
+    for (var controller in _controllers) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
-  // Función para guardar un usuario
-  Future<bool> _saveUser() async {
+  Future<void> _registerUser() async {
     if (_formKey.currentState!.validate()) {
-      Map<String, dynamic> userData = {
-        'Nombre': _nombreController.text,
-        'ApellidoPaterno': _apellidoPaternoController.text,
-        'ApellidoMaterno': _apellidoMaternoController.text,
-        'Correo': _emailController.text,
-        'Contrasena': _passwordController.text,
+      if (_controllers[8].text != _controllers[9].text) {
+        _showErrorSnackbar('Las contraseñas no coinciden');
+        return;
+      }
+
+      setState(() => _isLoading = true);
+
+      final userData = {
+        'Nombre': _controllers[0].text,
+        'ApellidoPaterno': _controllers[1].text,
+        'ApellidoMaterno': _controllers[2].text,
+        'Correo': _controllers[7].text,
+        'Telefono': _controllers[6].text,
+        'Contrasena': _controllers[8].text,
+        if (_selectedRole == 'Estudiante') ...{
+          'matricula': _controllers[3].text,
+          'Carrera': _controllers[4].text,
+          'Semestre': int.parse(_controllers[5].text),
+        },
+        if (_selectedRole == 'Docente') ...{
+          'RFC': _controllers[10].text,
+        },
       };
 
-      // Agregar campos específicos según el rol
-      switch (_selectedRole) {
-        case 'Chef':
-          return await DBHelper.registerChef(userData);
-        case 'Estudiante':
-          userData['Matricula'] = _matriculaController.text;
-          userData['Carrera'] = _carreraController.text;
-          userData['Semestre'] = _semestreController.text;
-          return await DBHelper.registerEstudiante(userData);
-        case 'Docente':
-          userData['RFC'] = _rfcController.text;
-          return await DBHelper.registerDocente(userData);
-        default:
-          return false;
+      try {
+        bool success = false;
+        switch (_selectedRole) {
+          case 'Estudiante':
+            success = await _firebaseService.registerEstudiante(userData);
+            break;
+          case 'Docente':
+            success = await _firebaseService.registerDocente(userData);
+            break;
+        }
+
+        if (success) {
+          _showSuccessSnackbar('Registro exitoso');
+          await Future.delayed(Duration(seconds: 1));
+          Navigator.pop(context);
+        } else {
+          _showErrorSnackbar('Error en el registro');
+        }
+      } catch (e) {
+        _showErrorSnackbar(e.toString());
+      } finally {
+        setState(() => _isLoading = false);
       }
     }
-    return false;
+  }
+
+  void _showErrorSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  void _showSuccessSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Widget _buildTextFormField({
+    required TextEditingController controller,
+    required String labelText,
+    required IconData icon,
+    bool obscureText = false,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: labelText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        prefixIcon: Icon(icon, color: primaryColor),
+        filled: true,
+        fillColor: cardColor,
+      ),
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      validator: validator,
+    );
+  }
+
+  Widget _buildDropdownFormField({
+    required TextEditingController controller,
+    required String labelText,
+    required List<String> items,
+    required IconData icon,
+    String? Function(String?)? validator,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: controller.text.isEmpty ? null : controller.text,
+      items: items.map((String value) {
+        return DropdownMenuItem<String>(
+          value: value,
+          child: Text(value),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {
+        if (newValue != null) {
+          controller.text = newValue;
+        }
+      },
+      decoration: InputDecoration(
+        labelText: labelText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        prefixIcon: Icon(icon, color: primaryColor),
+        filled: true,
+        fillColor: cardColor,
+      ),
+      validator: validator,
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.bold,
+        color: primaryColor,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Registro')),
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        title: Text('Registro de Usuario'),
+        backgroundColor: primaryColor,
+      ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Card(
-            elevation: 5,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  children: [
-                    Text('Crear cuenta',
-                        style: TextStyle(
-                            fontSize: 24, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 12),
-
-                    // Menú desplegable para seleccionar el rol
-                    DropdownButtonFormField<String>(
-                      value: _selectedRole,
-                      decoration: InputDecoration(labelText: 'Seleccionar rol'),
-                      items: ['Chef', 'Estudiante', 'Docente']
-                          .map((role) => DropdownMenuItem<String>(
-                                value: role,
-                                child: Text(role),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedRole = value;
-                        });
-                      },
-                      validator: (value) {
-                        if (value == null) {
-                          return 'Por favor seleccione un rol';
-                        }
-                        return null;
-                      },
+          padding: const EdgeInsets.all(20.0),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Card(
+                  elevation: 5,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSectionTitle('Tipo de Usuario'),
+                        SizedBox(height: 15),
+                        DropdownButtonFormField<String>(
+                          value: _selectedRole,
+                          items: ['Estudiante', 'Docente']
+                              .map((role) => DropdownMenuItem(
+                                    value: role,
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          role == 'Estudiante'
+                                              ? Icons.school
+                                              : Icons.work,
+                                          color: primaryColor,
+                                          size: 20,
+                                        ),
+                                        SizedBox(width: 10),
+                                        Text(
+                                          role,
+                                          style: TextStyle(color: textColor),
+                                        ),
+                                      ],
+                                    ),
+                                  ))
+                              .toList(),
+                          onChanged: (value) =>
+                              setState(() => _selectedRole = value!),
+                          decoration: InputDecoration(
+                            labelText: 'Seleccione su rol',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            filled: true,
+                            fillColor: cardColor,
+                          ),
+                        ),
+                        SizedBox(height: 30),
+                        _buildSectionTitle('Información Personal'),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[0],
+                          labelText: 'Nombre',
+                          icon: Icons.person_outline,
+                          validator: (value) =>
+                              value!.isEmpty ? 'Campo obligatorio' : null,
+                        ),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[1],
+                          labelText: 'Apellido Paterno',
+                          icon: Icons.person_outline,
+                          validator: (value) =>
+                              value!.isEmpty ? 'Campo obligatorio' : null,
+                        ),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[2],
+                          labelText: 'Apellido Materno',
+                          icon: Icons.person_outline,
+                          validator: (value) =>
+                              value!.isEmpty ? 'Campo obligatorio' : null,
+                        ),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[6],
+                          labelText: 'Teléfono',
+                          icon: Icons.phone,
+                          keyboardType: TextInputType.phone,
+                          validator: (value) =>
+                              value!.isEmpty ? 'Campo obligatorio' : null,
+                        ),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[7],
+                          labelText: 'Correo Electrónico',
+                          icon: Icons.email,
+                          keyboardType: TextInputType.emailAddress,
+                          validator: (value) {
+                            if (value!.isEmpty) {
+                              return 'Campo obligatorio';
+                            }
+                            if (!value.contains('@')) {
+                              return 'Correo inválido';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 30),
+                        _buildSectionTitle('Seguridad'),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[8],
+                          labelText: 'Contraseña',
+                          icon: Icons.lock_outline,
+                          obscureText: !_isPasswordVisible,
+                          validator: (value) {
+                            if (value!.isEmpty) {
+                              return 'Campo obligatorio';
+                            }
+                            if (value.length < 6) {
+                              return 'La contraseña debe tener al menos 6 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 15),
+                        _buildTextFormField(
+                          controller: _controllers[9],
+                          labelText: 'Confirmar Contraseña',
+                          icon: Icons.lock_outline,
+                          obscureText: !_isConfirmPasswordVisible,
+                          validator: (value) {
+                            if (value!.isEmpty) {
+                              return 'Campo obligatorio';
+                            }
+                            if (value != _controllers[8].text) {
+                              return 'Las contraseñas no coinciden';
+                            }
+                            return null;
+                          },
+                        ),
+                        SizedBox(height: 30),
+                        if (_selectedRole == 'Estudiante') ...[
+                          _buildSectionTitle('Información Académica'),
+                          SizedBox(height: 15),
+                          _buildTextFormField(
+                            controller: _controllers[3],
+                            labelText: 'Matrícula',
+                            icon: Icons.badge_outlined,
+                            validator: (value) =>
+                                value!.isEmpty ? 'Campo obligatorio' : null,
+                          ),
+                          SizedBox(height: 15),
+                          _buildDropdownFormField(
+                            controller: _controllers[4],
+                            labelText: 'Carrera',
+                            items: [
+                              'Informática',
+                              'Turismo',
+                              'Gestión',
+                              'Gastronomía',
+                              'Agronomía'
+                            ],
+                            icon: Icons.school_outlined,
+                            validator: (value) => value == null || value.isEmpty
+                                ? 'Seleccione una carrera'
+                                : null,
+                          ),
+                          SizedBox(height: 15),
+                          _buildTextFormField(
+                            controller: _controllers[5],
+                            labelText: 'Semestre',
+                            icon: Icons.numbers_outlined,
+                            keyboardType: TextInputType.number,
+                            validator: (value) =>
+                                value!.isEmpty ? 'Campo obligatorio' : null,
+                          ),
+                          SizedBox(height: 20),
+                        ],
+                        if (_selectedRole == 'Docente') ...[
+                          _buildSectionTitle('Información Laboral'),
+                          SizedBox(height: 15),
+                          _buildTextFormField(
+                            controller: _controllers[10],
+                            labelText: 'RFC',
+                            icon: Icons.assignment_ind_outlined,
+                            validator: (value) =>
+                                value!.isEmpty ? 'Campo obligatorio' : null,
+                          ),
+                          SizedBox(height: 20),
+                        ],
+                        SizedBox(height: 30),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _registerUser,
+                            child: _isLoading
+                                ? CircularProgressIndicator()
+                                : Text('Registrarse'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: primaryColor,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    SizedBox(height: 12),
-
-                    // Campos comunes para todos los roles
-                    TextFormField(
-                      controller: _nombreController,
-                      decoration: InputDecoration(labelText: 'Nombre'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese su nombre';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _apellidoPaternoController,
-                      decoration:
-                          InputDecoration(labelText: 'Apellido Paterno'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese su apellido paterno';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _apellidoMaternoController,
-                      decoration:
-                          InputDecoration(labelText: 'Apellido Materno'),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese su apellido materno';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12),
-
-                    // Campos específicos según el rol
-                    if (_selectedRole == 'Estudiante') ...[
-                      TextFormField(
-                        controller: _matriculaController,
-                        decoration: InputDecoration(labelText: 'Matrícula'),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su matrícula';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      TextFormField(
-                        controller: _carreraController,
-                        decoration: InputDecoration(labelText: 'Carrera'),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su carrera';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-                      TextFormField(
-                        controller: _semestreController,
-                        decoration: InputDecoration(labelText: 'Semestre'),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su semestre';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-                    ],
-
-                    if (_selectedRole == 'Docente') ...[
-                      TextFormField(
-                        controller: _rfcController,
-                        decoration: InputDecoration(labelText: 'RFC'),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Por favor ingrese su RFC';
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 12),
-                    ],
-
-                    // Campos comunes para todos los roles
-                    TextFormField(
-                      controller: _emailController,
-                      decoration:
-                          InputDecoration(labelText: 'Correo electrónico'),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese un correo electrónico';
-                        }
-                        if (!RegExp(
-                                r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
-                            .hasMatch(value)) {
-                          return 'Ingrese un correo electrónico válido';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 12),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: InputDecoration(labelText: 'Contraseña'),
-                      obscureText: true,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Por favor ingrese una contraseña';
-                        }
-                        if (value.length < 4) {
-                          return 'La contraseña debe tener al menos 4 caracteres';
-                        }
-                        return null;
-                      },
-                    ),
-                    SizedBox(height: 30),
-                    ElevatedButton(
-                      onPressed: () async {
-                        bool success = await _saveUser();
-                        if (success) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content:
-                                  Text('Usuario registrado exitosamente')));
-                          Navigator.pop(context);
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text(
-                                  'Error al registrar usuario. El correo ya existe o hubo un error.')));
-                        }
-                      },
-                      child: Text('Registrar'),
-                      style: ElevatedButton.styleFrom(
-                        padding:
-                            EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),

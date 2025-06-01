@@ -1,0 +1,184 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Funciones de utilidad
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'apolinar12@gmail.com' ||
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.rol == 'admin'
+      );
+    }
+    
+    function isChef() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/chefs/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.rol == 'chef'
+      );
+    }
+    
+    function isEstudiante() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/estudiantes/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.rol == 'estudiante'
+      );
+    }
+    
+    function isDocente() {
+      return isAuthenticated() && (
+        exists(/databases/$(database)/documents/docentes/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/roles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/roles/$(request.auth.uid)).data.rol == 'docente'
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Reglas para roles
+    match /roles/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || request.auth.uid == userId;
+    }
+
+    // Reglas para estudiantes
+    match /estudiantes/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Reglas para docentes
+    match /docentes/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Reglas para chefs
+    match /chefs/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Reglas para admins
+    match /admins/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Reglas para platillos
+    match /platillos/{platilloId} {
+      allow read: if isAuthenticated();
+      allow create: if isChef();
+      allow update, delete: if isChef() || isAdmin();
+    }
+
+    // Reglas para postres
+    match /postres/{postreId} {
+      allow read: if isAuthenticated();
+      allow create: if isChef();
+      allow update, delete: if isChef() || isAdmin();
+    }
+
+    // Reglas para bebidas
+    match /bebidas/{bebidaId} {
+      allow read: if isAuthenticated();
+      allow create: if isChef();
+      allow update, delete: if isChef() || isAdmin();
+    }
+
+    // Reglas para ordenes
+    match /ordenes/{pedidoId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isChef() || isAdmin() || 
+        (isAuthenticated() && 
+         resource.data.userId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']));
+      allow delete: if isAdmin();
+    }
+
+    // Reglas para pedidos
+    match /pedidos/{pedidoId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isChef() || isAdmin() || 
+        (isAuthenticated() && 
+         resource.data.userId == request.auth.uid && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancelledAt']));
+      allow delete: if isAdmin();
+    }
+
+    // Reglas para reportes
+    match /reportes/{reporteId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Regla por defecto
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Funciones de utilidad
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && (
+        request.auth.token.email == 'apolinar12@gmail.com' ||
+        firestore.get(/databases/(default)/documents/admins/$(request.auth.uid)).data.PK_ROL == 1
+      );
+    }
+    
+    function isChef() {
+      return isAuthenticated() && 
+        firestore.get(/databases/(default)/documents/chefs/$(request.auth.uid)).data.PK_ROL == 2;
+    }
+
+    // Regla para imágenes de platillos
+    match /platillos/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de postres
+    match /postres/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de bebidas
+    match /bebidas/{imageId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || isChef();
+      allow delete: if isAdmin() || isChef();
+    }
+
+    // Regla para imágenes de perfil
+    match /perfiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && request.auth.uid == userId;
+      allow delete: if isAdmin() || request.auth.uid == userId;
+    }
+
+    // Regla por defecto para otras imágenes
+    match /{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() || isChef();
+    }
+  }
+} 
