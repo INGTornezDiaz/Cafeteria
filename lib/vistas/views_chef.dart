@@ -52,20 +52,39 @@ class _ChefScreenState extends State<ChefScreen>
 
   Future<void> _pickImage() async {
     try {
+      final source = await showDialog<ImageSource>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Seleccionar imagen'),
+          content: Text('¿De dónde quieres obtener la imagen?'),
+          actions: [
+            TextButton.icon(
+              icon: Icon(Icons.photo_camera),
+              label: Text('Cámara'),
+              onPressed: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            TextButton.icon(
+              icon: Icon(Icons.photo_library),
+              label: Text('Galería'),
+              onPressed: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      );
+      if (source == null) return;
       final XFile? pickedFile = await _imagePicker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 70,
       );
-
       if (pickedFile != null) {
         setState(() {
           _imageFile = File(pickedFile.path);
         });
       }
     } catch (e) {
-      print('Error al tomar la foto: $e');
+      print('Error al seleccionar la imagen: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al tomar la foto: $e')),
+        SnackBar(content: Text('Error al seleccionar la imagen: $e')),
       );
     }
   }
@@ -628,27 +647,26 @@ class _ChefScreenState extends State<ChefScreen>
     }
   }
 
-  Widget _buildInfoItem(
-      IconData icon, String label, String value, String campo) {
+  Widget _buildInfoItem(IconData icon, String label, String value) {
     return Container(
-      margin: EdgeInsets.only(bottom: 25),
-      padding: EdgeInsets.all(15),
+      margin: EdgeInsets.only(bottom: 15),
+      padding: EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.grey[200]!),
       ),
       child: Row(
         children: [
           Container(
-            padding: EdgeInsets.all(12),
+            padding: EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icon, color: Colors.orange, size: 28),
+            child: Icon(icon, color: Colors.orange, size: 24),
           ),
-          SizedBox(width: 15),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -656,24 +674,20 @@ class _ChefScreenState extends State<ChefScreen>
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     color: Colors.grey[600],
                   ),
                 ),
-                SizedBox(height: 5),
+                SizedBox(height: 4),
                 Text(
                   value,
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
             ),
-          ),
-          IconButton(
-            icon: Icon(Icons.edit, color: Colors.orange),
-            onPressed: () => _mostrarDialogoEdicion(label, campo, value),
           ),
         ],
       ),
@@ -691,7 +705,11 @@ class _ChefScreenState extends State<ChefScreen>
             .doc(widget.userData['uid'])
             .snapshots(),
         builder: (context, snapshot) {
+          print('UID del chef: ${widget.userData['uid']}');
+          print('Documento existe: ${snapshot.data?.exists}');
+
           if (snapshot.hasError) {
+            print('Error al cargar perfil: ${snapshot.error}');
             return _buildErrorProfile();
           }
 
@@ -700,9 +718,22 @@ class _ChefScreenState extends State<ChefScreen>
           }
 
           final chefData = snapshot.data?.data() as Map<String, dynamic>? ?? {};
+          print('CHEF DATA COMPLETA: ' + chefData.toString());
+
+          // Obtener los datos exactamente como están en Firestore
+          final nombre = chefData['Nombre']?.toString().trim() ?? 'Sin nombre';
+          final correo = chefData['Correo']?.toString().trim() ?? 'Sin correo';
+          final usuario =
+              chefData['Usuario']?.toString().trim() ?? 'Sin usuario';
+          final rol = chefData['PK_ROL']?.toString() ?? '2';
+
+          print('Nombre encontrado: $nombre');
+          print('Correo encontrado: $correo');
+          print('Usuario encontrado: $usuario');
+          print('Rol encontrado: $rol');
 
           return Container(
-            height: MediaQuery.of(context).size.height * 0.8,
+            height: MediaQuery.of(context).size.height * 0.5,
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
@@ -717,7 +748,7 @@ class _ChefScreenState extends State<ChefScreen>
             child: Column(
               children: [
                 Container(
-                  padding: EdgeInsets.symmetric(vertical: 30),
+                  padding: EdgeInsets.symmetric(vertical: 20),
                   decoration: BoxDecoration(
                     color: Colors.orange,
                     borderRadius:
@@ -739,29 +770,29 @@ class _ChefScreenState extends State<ChefScreen>
                           ],
                         ),
                         child: CircleAvatar(
-                          radius: 60,
+                          radius: 40,
                           backgroundColor: Colors.orange[100],
                           child: Icon(
                             Icons.person,
-                            size: 60,
+                            size: 40,
                             color: Colors.orange,
                           ),
                         ),
                       ),
-                      SizedBox(height: 20),
+                      SizedBox(height: 16),
                       Text(
-                        chefData['nombre'] ?? 'Chef',
+                        nombre,
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: 24,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
                       ),
-                      SizedBox(height: 8),
+                      SizedBox(height: 4),
                       Text(
-                        chefData['email'] ?? 'No email',
+                        correo,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 16,
                           color: Colors.white.withOpacity(0.9),
                         ),
                       ),
@@ -770,38 +801,35 @@ class _ChefScreenState extends State<ChefScreen>
                 ),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: EdgeInsets.all(25),
+                    padding: EdgeInsets.all(20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           'Información Personal',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: Colors.orange,
                           ),
                         ),
+                        SizedBox(height: 16),
+                        _buildInfoItem(
+                          Icons.badge,
+                          'Nombre',
+                          nombre,
+                        ),
+                        _buildInfoItem(
+                          Icons.email,
+                          'Correo',
+                          correo,
+                        ),
+                        _buildInfoItem(
+                          Icons.person,
+                          'Usuario',
+                          usuario,
+                        ),
                         SizedBox(height: 20),
-                        _buildInfoItem(
-                          Icons.phone,
-                          'Teléfono',
-                          chefData['telefono'] ?? 'No disponible',
-                          'telefono',
-                        ),
-                        _buildInfoItem(
-                          Icons.location_on,
-                          'Dirección',
-                          chefData['direccion'] ?? 'No disponible',
-                          'direccion',
-                        ),
-                        _buildInfoItem(
-                          Icons.work,
-                          'Especialidad',
-                          chefData['especialidad'] ?? 'No disponible',
-                          'especialidad',
-                        ),
-                        SizedBox(height: 30),
                         Container(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -824,9 +852,9 @@ class _ChefScreenState extends State<ChefScreen>
                             label: Text('Cerrar Sesión'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red,
-                              padding: EdgeInsets.symmetric(vertical: 15),
+                              padding: EdgeInsets.symmetric(vertical: 12),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                             ),
                           ),
@@ -945,26 +973,20 @@ class _ChefScreenState extends State<ChefScreen>
                       // Platillos
                       _buildMenuSection(
                         'Platillos',
-                        _firestore
-                            .collection('platillos')
-                            .where('chefId', isEqualTo: widget.userData['uid'])
-                            .snapshots() as Stream<QuerySnapshot>,
+                        _firestore.collection('platillos').snapshots()
+                            as Stream<QuerySnapshot>,
                       ),
                       // Postres
                       _buildMenuSection(
                         'Postres',
-                        _firestore
-                            .collection('postres')
-                            .where('chefId', isEqualTo: widget.userData['uid'])
-                            .snapshots() as Stream<QuerySnapshot>,
+                        _firestore.collection('postres').snapshots()
+                            as Stream<QuerySnapshot>,
                       ),
                       // Bebidas
                       _buildMenuSection(
                         'Bebidas',
-                        _firestore
-                            .collection('bebidas')
-                            .where('chefId', isEqualTo: widget.userData['uid'])
-                            .snapshots() as Stream<QuerySnapshot>,
+                        _firestore.collection('bebidas').snapshots()
+                            as Stream<QuerySnapshot>,
                       ),
                     ],
                   ),

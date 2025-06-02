@@ -271,8 +271,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           labelText: 'Teléfono',
                           icon: Icons.phone,
                           keyboardType: TextInputType.phone,
-                          validator: (value) =>
-                              value!.isEmpty ? 'Campo obligatorio' : null,
+                          validator: (value) {
+                            if (value!.isEmpty) {
+                              return 'Campo obligatorio';
+                            }
+                            if (!RegExp(r'^\d{10}$').hasMatch(value)) {
+                              return 'El teléfono debe tener exactamente 10 dígitos';
+                            }
+                            return null;
+                          },
                         ),
                         SizedBox(height: 15),
                         _buildTextFormField(
@@ -284,8 +291,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (value!.isEmpty) {
                               return 'Campo obligatorio';
                             }
-                            if (!value.contains('@')) {
-                              return 'Correo inválido';
+                            if (_selectedRole == 'Estudiante') {
+                              if (!value.endsWith('@smarcos.tecnm.mx')) {
+                                return 'Solo se permiten correos institucionales (@smarcos.tecnm.mx)';
+                              }
+                            } else if (_selectedRole == 'Docente') {
+                              if (!value.endsWith('@gmail.com')) {
+                                return 'Solo se permiten correos de Gmail (@gmail.com)';
+                              }
                             }
                             return null;
                           },
@@ -302,8 +315,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             if (value!.isEmpty) {
                               return 'Campo obligatorio';
                             }
-                            if (value.length < 6) {
-                              return 'La contraseña debe tener al menos 6 caracteres';
+                            if (value.length < 8) {
+                              return 'La contraseña debe tener al menos 8 caracteres';
                             }
                             return null;
                           },
@@ -332,8 +345,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             controller: _controllers[3],
                             labelText: 'Matrícula',
                             icon: Icons.badge_outlined,
-                            validator: (value) =>
-                                value!.isEmpty ? 'Campo obligatorio' : null,
+                            validator: (value) {
+                              if (value!.isEmpty) {
+                                return 'Campo obligatorio';
+                              }
+                              if (!RegExp(r'^\d{9}$').hasMatch(value)) {
+                                return 'La matrícula debe tener exactamente 9 dígitos';
+                              }
+                              return null;
+                            },
                           ),
                           SizedBox(height: 15),
                           _buildDropdownFormField(

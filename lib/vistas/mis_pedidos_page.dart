@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../controllers/order_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'ticket_screen.dart';
 
 class MisPedidosPage extends StatelessWidget {
   final Map<String, dynamic> userData;
@@ -180,6 +181,28 @@ class MisPedidosPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0, vertical: 8.0),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        icon: Icon(Icons.qr_code, color: Colors.orange),
+                        label: Text('Ver Tiket',
+                            style: TextStyle(color: Colors.orange)),
+                        style: OutlinedButton.styleFrom(
+                          side: BorderSide(color: Colors.orange),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                          padding: EdgeInsets.symmetric(vertical: 12),
+                        ),
+                        onPressed: () {
+                          Get.to(() => TicketScreen(
+                              order: order, userName: userData['nombre']));
+                        },
+                      ),
+                    ),
+                  ),
                 ],
               ),
             );

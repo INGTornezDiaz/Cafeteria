@@ -191,11 +191,15 @@ class FirebaseService {
         }
 
         print('Usuario encontrado por email');
-        return querySnapshot.docs.first.data();
+        final data = querySnapshot.docs.first.data();
+        data['uid'] = querySnapshot.docs.first.id;
+        return data;
       }
 
       print('Usuario encontrado en Firestore');
-      return doc.data();
+      final data = doc.data() as Map<String, dynamic>;
+      data['uid'] = doc.id;
+      return data;
     } on FirebaseAuthException catch (e) {
       print('Error de Firebase Auth: ${e.code} - ${e.message}');
       if (e.code == 'user-not-found') {

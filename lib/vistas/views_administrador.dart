@@ -12,6 +12,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:intl/intl.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
+import '../services/storage_service.dart';
 
 class AdministradorScreen extends StatelessWidget {
   // Colores como constantes estáticas
@@ -2104,9 +2106,10 @@ class AdministradorScreen extends StatelessWidget {
                   context,
                   'Gestionar Menú',
                   Icons.restaurant_menu,
-                  () {
-                    // Implementar gestión de menú
-                  },
+                  () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => GestionMenuScreen())),
                 ),
                 _buildMenuCard(
                   context,
@@ -2180,5 +2183,440 @@ class AdministradorScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class GestionMenuScreen extends StatefulWidget {
+  @override
+  _GestionMenuScreenState createState() => _GestionMenuScreenState();
+}
+
+class _GestionMenuScreenState extends State<GestionMenuScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<String> categorias = ['platillos', 'bebidas', 'postres'];
+  String _selectedCategoria = 'platillos';
+  final _storageService = StorageService();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      setState(() {
+        _selectedCategoria = categorias[_tabController.index];
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Gestión de Menú'),
+        backgroundColor: AdministradorScreen.primaryOrange,
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: [
+            Tab(text: 'Platillos'),
+            Tab(text: 'Bebidas'),
+            Tab(text: 'Postres'),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(12),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Buscar por nombre...',
+                prefixIcon: Icon(Icons.search),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onChanged: (value) => setState(() => _searchQuery = value),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: categorias
+                  .map((categoria) => _buildListaCategoria(categoria))
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildListaCategoria(String categoria) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection(categoria).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(child: CircularProgressIndicator());
+        }
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return Center(child: Text('No hay productos en esta categoría.'));
+        }
+        final productos = snapshot.data!.docs.where((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          return _searchQuery.isEmpty ||
+              (data['Nombre'] ?? '')
+                  .toString()
+                  .toLowerCase()
+                  .contains(_searchQuery.toLowerCase());
+        }).toList();
+        return ListView.builder(
+          itemCount: productos.length,
+          itemBuilder: (context, index) {
+            final data = productos[index].data() as Map<String, dynamic>;
+            final docId = productos[index].id;
+            return Card(
+              elevation: 4,
+              margin: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(15)),
+              child: Padding(
+                padding: EdgeInsets.all(12),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    FutureBuilder<File?>(
+                      future: () {
+                        final img = data['Imagen'] ?? data['imagen'];
+                        return (img != null && img.toString().isNotEmpty)
+                            ? _storageService.getImageFile(img, categoria)
+                            : Future.value(null);
+                      }(),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return Container(
+                            width: 70,
+                            height: 70,
+                            child: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        if (snapshot.hasData && snapshot.data != null) {
+                          return ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.file(snapshot.data!,
+                                width: 70, height: 70, fit: BoxFit.cover),
+                          );
+                        }
+                        return Container(
+                          width: 70,
+                          height: 70,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[200],
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(Icons.fastfood,
+                              size: 40,
+                              color: AdministradorScreen.primaryOrange),
+                        );
+                      },
+                    ),
+                    SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(data['Nombre'] ?? data['nombre'] ?? '',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 18)),
+                          if ((data['Descripcion'] ?? data['descripcion']) !=
+                                  null &&
+                              (data['Descripcion'] ?? data['descripcion'])
+                                  .toString()
+                                  .isNotEmpty)
+                            Padding(
+                              padding: EdgeInsets.only(top: 4),
+                              child: Text(
+                                  data['Descripcion'] ?? data['descripcion'],
+                                  style: TextStyle(color: Colors.grey[700])),
+                            ),
+                          SizedBox(height: 4),
+                          Wrap(
+                            spacing: 12,
+                            children: [
+                              Text(
+                                  'Precio: \$${(data['Precio'] ?? data['precio'])?.toStringAsFixed(2) ?? (data['Precio'] ?? data['precio'] ?? '0.00')}',
+                                  style: TextStyle(
+                                      color: Colors.green[800],
+                                      fontWeight: FontWeight.w500)),
+                              if ((data['cantidad'] ?? data['Cantidad']) !=
+                                  null)
+                                Text(
+                                    'Cantidad: ${data['cantidad'] ?? data['Cantidad']}'),
+                              if ((data['tipo'] ?? data['Tipo']) != null)
+                                Text('Tipo: ${data['tipo'] ?? data['Tipo']}'),
+                              if ((data['categoria'] ?? data['Categoria']) !=
+                                  null)
+                                Text(
+                                    'Categoría: ${data['categoria'] ?? data['Categoria']}'),
+                              Text(
+                                  'Disponible: ${(data['Disponible'] ?? data['disponible']) == true ? 'Sí' : 'No'}'),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    Column(
+                      children: [
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _mostrarFormularioProducto(context,
+                              categoria: categoria, docId: docId, data: data),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _confirmarEliminarProducto(
+                              context, categoria, docId),
+                        ),
+                        Switch(
+                          value: (data['Disponible'] ?? data['disponible']) ==
+                              true,
+                          onChanged: (value) => _actualizarDisponibilidad(
+                              categoria, docId, value),
+                          activeColor: AdministradorScreen.primaryOrange,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _mostrarFormularioProducto(BuildContext context,
+      {required String categoria,
+      String? docId,
+      Map<String, dynamic>? data}) async {
+    final _formKey = GlobalKey<FormState>();
+    final nombreController =
+        TextEditingController(text: data?['Nombre'] ?? data?['nombre'] ?? '');
+    final descripcionController = TextEditingController(
+        text: data?['Descripcion'] ?? data?['descripcion'] ?? '');
+    final precioController = TextEditingController(
+        text: (data?['Precio'] ?? data?['precio'])?.toString() ?? '');
+    final cantidadController = TextEditingController(
+        text: (data?['cantidad'] ?? data?['Cantidad'])?.toString() ?? '');
+    final tipoController =
+        TextEditingController(text: data?['tipo'] ?? data?['Tipo'] ?? '');
+    final categoriaController = TextEditingController(
+        text: data?['categoria'] ?? data?['Categoria'] ?? '');
+    String? imagenUrl = data?['Imagen'] ?? data?['imagen'];
+    bool disponible = (data?['Disponible'] ?? data?['disponible']) ?? true;
+    XFile? nuevaImagen;
+
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(docId == null ? 'Agregar Producto' : 'Editar Producto'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      final picker = ImagePicker();
+                      final picked =
+                          await picker.pickImage(source: ImageSource.gallery);
+                      if (picked != null) {
+                        setState(() => nuevaImagen = picked);
+                      }
+                    },
+                    child: nuevaImagen != null
+                        ? Image.file(File(nuevaImagen!.path),
+                            width: 100, height: 100, fit: BoxFit.cover)
+                        : (imagenUrl != null && imagenUrl.isNotEmpty)
+                            ? FutureBuilder<File?>(
+                                future: _storageService.getImageFile(
+                                    imagenUrl, categoria),
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState ==
+                                      ConnectionState.waiting) {
+                                    return Container(
+                                        width: 100,
+                                        height: 100,
+                                        child: Center(
+                                            child:
+                                                CircularProgressIndicator()));
+                                  }
+                                  if (snapshot.hasData &&
+                                      snapshot.data != null) {
+                                    return Image.file(snapshot.data!,
+                                        width: 100,
+                                        height: 100,
+                                        fit: BoxFit.cover);
+                                  }
+                                  return Container(
+                                    width: 100,
+                                    height: 100,
+                                    color: Colors.grey[200],
+                                    child: Icon(Icons.add_a_photo,
+                                        size: 40, color: Colors.grey),
+                                  );
+                                },
+                              )
+                            : Container(
+                                width: 100,
+                                height: 100,
+                                color: Colors.grey[200],
+                                child: Icon(Icons.add_a_photo,
+                                    size: 40, color: Colors.grey),
+                              ),
+                  ),
+                  SizedBox(height: 12),
+                  TextFormField(
+                    controller: nombreController,
+                    decoration: InputDecoration(labelText: 'Nombre'),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Ingrese el nombre' : null,
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: descripcionController,
+                    decoration: InputDecoration(labelText: 'Descripción'),
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: precioController,
+                    decoration: InputDecoration(labelText: 'Precio'),
+                    keyboardType:
+                        TextInputType.numberWithOptions(decimal: true),
+                    validator: (v) =>
+                        v == null || v.isEmpty ? 'Ingrese el precio' : null,
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: cantidadController,
+                    decoration: InputDecoration(labelText: 'Cantidad'),
+                    keyboardType: TextInputType.number,
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: tipoController,
+                    decoration: InputDecoration(labelText: 'Tipo'),
+                  ),
+                  SizedBox(height: 8),
+                  TextFormField(
+                    controller: categoriaController,
+                    decoration: InputDecoration(labelText: 'Categoría'),
+                  ),
+                  SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Text('Disponible'),
+                      Switch(
+                        value: disponible,
+                        onChanged: (value) =>
+                            setState(() => disponible = value),
+                        activeColor: AdministradorScreen.primaryOrange,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (_formKey.currentState!.validate()) {
+                  String? url = imagenUrl;
+                  if (nuevaImagen != null) {
+                    // Aquí deberías subir la imagen a Firebase Storage y obtener la URL
+                    // Por simplicidad, solo guardamos el path local
+                    url = nuevaImagen!.path;
+                  }
+                  final producto = {
+                    'Nombre': nombreController.text.trim(),
+                    'Descripcion': descripcionController.text.trim(),
+                    'Precio': double.tryParse(precioController.text) ?? 0.0,
+                    'Imagen': url ?? '',
+                    'Disponible': disponible,
+                    'cantidad': int.tryParse(cantidadController.text) ?? 0,
+                    'tipo': tipoController.text.trim(),
+                    'categoria': categoriaController.text.trim(),
+                  };
+                  if (docId == null) {
+                    await FirebaseFirestore.instance
+                        .collection(categoria)
+                        .add(producto);
+                  } else {
+                    await FirebaseFirestore.instance
+                        .collection(categoria)
+                        .doc(docId)
+                        .update(producto);
+                  }
+                  Navigator.pop(context);
+                }
+              },
+              child: Text(docId == null ? 'Agregar' : 'Guardar'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AdministradorScreen.primaryOrange),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmarEliminarProducto(
+      BuildContext context, String categoria, String docId) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Eliminar Producto'),
+        content: Text('¿Está seguro de eliminar este producto?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Eliminar'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await FirebaseFirestore.instance
+          .collection(categoria)
+          .doc(docId)
+          .delete();
+    }
+  }
+
+  Future<void> _actualizarDisponibilidad(
+      String categoria, String docId, bool disponible) async {
+    await FirebaseFirestore.instance
+        .collection(categoria)
+        .doc(docId)
+        .update({'Disponible': disponible});
   }
 }
